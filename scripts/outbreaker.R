@@ -47,17 +47,19 @@ data <- simulate_outbreak_groups(n_groups = 20,
 View(data)
 
 
-length(unique(data$group_id))
-length(unique(data$id))
-data %>% count(group_id) %>% summarise(mean = mean(n))
+length(unique(data$group_id)) #how many groups
+length(unique(data$id)) # how many individuals
+data %>% count(group_id) %>% summarise(mean = mean(n)) # avg individuals per household
 
 source("scripts/make_data.R")
 dist_plot(data, 
           group_var = "group_id", 
-          date_var = "date_onset") #if infector-infectee pair unknown
+          date_var = "date_onset") #if infector-infectee pair unknown dist()
 
 infector <- data$source
 infectee <- data$id
+#given that simulacr tells you who infected whom,
+#we can tell what's the true serial interval distribution:
 onset_infectees <- data[["date_onset"]]
 onset_infectors <- data[["date_onset"]][match(infector, infectee)]
 serial_interval <- as.integer(onset_infectees - onset_infectors)
@@ -68,7 +70,7 @@ data.frame(serial_interval = serial_interval) %>%
   aes(x = serial_interval) +#fill = Household
   geom_bar(aes(y = ..prop..), width = 1)+
   geom_vline(aes(xintercept = 0), color = "red")+
-  ggtitle("TRUE SERIAL INTERVAL")
+  ggtitle("TRUE SERIAL INTERVAL") 
 
 mean(serial_interval)
 median(serial_interval)
