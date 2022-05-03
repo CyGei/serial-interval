@@ -74,7 +74,8 @@ test_future_lapply_time <- system.time({
   on.exit(plan(oplan))
   
   test_future_lapply <- future_lapply(mydf_list,
-                                      outbreaker_f) #'future.seed=TRUE'????
+                                      outbreaker_f,
+                                      future.seed=TRUE) #'future.seed=TRUE'????
 })
 
 
@@ -87,7 +88,7 @@ library(parallel)
 test_parLapply_time <- system.time({
   capacity <- 60
   ncores <- detectCores()
-  workers <- floor(capacity * ncores / 100)
+  workers <- floor(capacity * ncores / 100) #garde 2 cores
   
   cl <- makeCluster(workers)
   clusterExport(cl,
@@ -146,8 +147,8 @@ lapply(1:3, distributions)
 #step 2 run outbreaker
 #step 3 bind all results
 
-#strating with:
-#step2
+#starting with:
+#step2 
 out_group <- function(i,
                        df_list,
                        date_column,
@@ -174,7 +175,7 @@ out_group <- function(i,
   )
   
   
-  lapply(df_list[1:2],
+  future_lapply(df_list,
          function(x) {
            outbreaker(
              data = outbreaker_data(
@@ -185,7 +186,8 @@ out_group <- function(i,
              ),
              config = outbreaker_configuration
            )
-         })
+         },
+         future.seed=TRUE)
   
 }
 
@@ -199,7 +201,7 @@ get_clean_results <- function(){
                    id_column = "id",
                    outbreaker_configuration = config,
                    w_params = generation_time_params ,
-                   f_params = incubation_params )
+                   f_params = incubation_params ) #future_lapply
   
   
   #step3
