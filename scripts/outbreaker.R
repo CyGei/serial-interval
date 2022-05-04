@@ -5,31 +5,28 @@ home_directory <-"~/OneDrive - Imperial College London/VirusWatch/serial-interva
 setwd(home_directory)
 source("scripts/libraries.R")
 
-# GENERATION AND INCUBATION DISTRIBUTIONS ---------------------------------
 
-source("scripts/make_gamma_params.R") #generates random gamma distribution parameters 
-                                      #from a range of values extracted from the literature
-                                      # based on truncated normal sampling
+# LATIN HYPERCUBE SAMPLING ------------------------------------------------
+source("scripts/LHS.R")
 
-incubation_params <- make_gamma_params(n = 1000, 
-                                       min_mu = 4.9, 
-                                       min_sd = 2.2, 
-                                       max_mu = 6.7, 
-                                       max_sd = 5.2)
+incubation_params <- get_lhs_params(
+  min_mu = 4.9,
+  min_sd = 2.2,
+  max_mu = 6.7,
+  max_sd = 5.2,
+  n = 10
+)
 
-
-generation_time_params <- make_gamma_params(n = 1000, 
-                                            min_mu = 3.95, 
-                                            min_sd = 1.51, 
-                                            max_mu = 5.57, 
-                                            max_sd = 2.23)
-
+generation_time_params<- get_lhs_params(
+  min_mu = 3.95,
+  min_sd = 1.51,
+  max_mu = 5.57,
+  max_sd = 2.23,
+  n = 10
+)
 
 
 # DATA -----------------------------------------
-# source("scripts/make_data.R") #generate fake data, min household size is 2 
-# head(data0)
-# dist_plot(data0) #plot all the possible serial inteval values using dist()
 
 source("scripts/simulacr_groups.R") #generate fake data, min household size is 2 
 
@@ -94,18 +91,22 @@ config <- create_config(
   init_tree = "star")
 
 
-source("scripts/outbreaker_groups.R")
 
-out_result_list <- outbreaker_groups(
-  df = data,
-  group_column = "group_id",
-  individual_column = "id",
-  dates = "date_onset",
-  w_params = generation_time_params,
-  f_params = incubation_params,
-  n = 10,
-  outbreaker_config = config
-)
+source("scripts/outbreaker_future_groups.R")
+
+data_split <- split(data, f = data$group_id)
+
+time.out_result_list <-system.time({
+  out_result_list <- outbreaker_future_groups(
+    n = 10,
+    df_list =  data_split,
+    date_column = "date_onset",
+    id_column = "id",
+    outbreaker_configuration = config,
+    w_params = generation_time_params ,
+    f_params = incubation_params,
+    workers = 10)
+})
 
 
 # SAVE RESULTS ------------------------------------------------------------
@@ -127,26 +128,26 @@ cat(blue("results saved in:\n",
 
 source("scripts/extract_serial_interval.R")
 
-data_list <- split(data, f = data$group_id)
+list_serial_interval <- sapply(
+  names(out_result_list),
+  FUN = function(x) {
+    data.frame( serial_interval = 
+                  extract_serial_interval(out_result_list[[x]],
+                                          data_split[[x]],
+                                          date_col = "date_onset") )
+  },
+  simplify = FALSE,
+  USE.NAMES = TRUE
+)
 
-list_serial_interval <- list()
-for (i in unique(names(out_result_list))) {
-  list_serial_interval[[i]] <-
-    data.frame(
-      serial_interval = extract_serial_interval(out_result_list[[i]], data_list[[i]], date_col = "date_onset")
-      #,
-      #Variant = data0_list[[i]]$nVar[1]
-    ) #index case variant is the variant for the whole household
-}
 
-list_serial_interval
 all_si_df <- bind_rows(list_serial_interval, .id = "Household") 
 
 mean(all_si_df$serial_interval)
 sd(all_si_df$serial_interval)
 Rmisc::CI(all_si_df$serial_interval, ci = 0.95)
 summary(all_si_df$serial_interval)
-
+summary(serial_interval)
 
 all_si_df %>% ggplot()+
   aes(x = serial_interval) +#fill = Household
@@ -163,60 +164,6 @@ library("mc2d")
 curve(dpert(x,min=-7,mean=0,max=4), from = -10, to = 11, lty=2 ,ylab="density")
 data <- data %>% 
   mutate(rpert_date_onset = date_onset + round(rpert(1,min=-7,mean=0,max=4)))
-
-
-
-
-# LATIN HYPERCUBE SAMPLING ------------------------------------------------
-
-library("lhs")
-# a design with 10 samples from 4 parameters
-A <- randomLHS(10, 2) 
-A
-plot(A)
-B <- matrix(nrow = nrow(A), ncol = ncol(A))
-B
-
-incubation_params <- make_gamma_params(n = 10, 
-                                       min_mu = 4.9, 
-                                       min_sd = 2.2, 
-                                       max_mu = 6.7, 
-                                       max_sd = 5.2)
-incubation_params
-min_mu = 4.9
-min_sd = 2.2 
-max_mu = 6.7 
-max_sd = 5.2
-
-B[,1] <- qtruncnorm( A[,1],
-          mean = median(min_mu:max_mu), 
-          sd = median(min_sd:max_sd),
-          a = min_mu, b = max_mu) #musample
-
-min_cv <- min_sd/min_mu
-max_cv <- max_sd/max_mu
-
-B[,2] <- qtruncnorm(A[,2],
-                        mean = median(min_cv:max_cv),
-                        sd = median(min_sd:max_sd),
-                        a = min_cv, b = max_cv) #cv sample
-
-B
-
-x <- data.frame(mu =B[,1], cv = B[,2] )
-
-x
-x %>% ggplot()+
-  aes(x = mu, y = cv)+
-  geom_point(col = "red")+
-  scale_x_continuous(breaks = seq(min(4.8),max(6.6), 0.2))+
-  scale_y_continuous(breaks = seq(min(0.4),max(0.8), 0.2))+
-  coord_equal(xlim = c(4.8, 6.6),
-              ylim = c(0.4, 0.8))+
-  theme(panel.border = element_rect(fill = NA),
-        panel.background = element_rect(fill = NA),
-        panel.grid.major = element_line(colour = "grey", size = rel(0.5)),
-        panel.ontop = TRUE)
 
 
 

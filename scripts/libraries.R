@@ -14,6 +14,8 @@ library(epitrix)
 library(distcrete) # to discretize distributions
 library(outbreaker2)
 library(truncnorm)
+library(future)
+library(future.apply)
 library(VirusWatch) # if error message go to
 # Coronawatch/R_libraries_testing/VirusWatch_package/instructions.txt
 

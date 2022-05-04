@@ -18,5 +18,7 @@ extract_serial_interval <- function(outbreaker_result, input_data, date_col, bur
   
   serial_interval <- as.integer(onset_infectees - onset_infectors)
   serial_interval <- serial_interval[!is.na(serial_interval)]
+  
+  return(serial_interval)
 }
 
